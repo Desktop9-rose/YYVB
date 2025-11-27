@@ -1,4 +1,3 @@
-# .github/workflows/apk_build.yml
 name: Build APK
 
 on:
@@ -8,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # 固定22.04避免包兼容问题
+    runs-on: ubuntu-22.04  # 固定22.04避免libtinfo5缺失
 
     steps:
       - name: Checkout code
@@ -38,7 +37,7 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 \
             cmake libffi-dev libssl-dev libxml2-utils
-          # 强制指定Java 17（sdkmanager要求Java 11+）
+          # 强制指定Java 17为默认版本
           sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "PATH=$JAVA_HOME/bin:$PATH" >> $GITHUB_ENV
@@ -50,59 +49,59 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           buildozer --version
 
-      - name: Accept Android SDK Licenses (鲁棒版，解决Exit Code 8)
+      - name: Accept Android SDK Licenses (路径映射+鲁棒版)
         run: |
-          # 1. 创建完整SDK目录并赋权
+          # 定义SDK绝对路径
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          # 创建目录并赋权
           mkdir -p "$SDK_DIR/cmdline-tools"
           chmod -R 777 "$SDK_DIR"
           cd "$SDK_DIR/cmdline-tools"
 
-          # 2. 备选下载源（清华+官方双保险）
+          # 双源下载cmdline-tools（清华+官方兜底）
           TOOLS_URL="https://mirrors.tuna.tsinghua.edu.cn/android/repository/commandlinetools-linux-10406996_latest.zip"
           if ! wget -q "$TOOLS_URL" -O tools.zip; then
               echo "清华镜像下载失败，切换官方源..."
               wget -q "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -O tools.zip
           fi
 
-          # 3. 验证压缩包是否存在
+          # 验证压缩包
           if [ ! -f "tools.zip" ]; then
               echo "Error: cmdline-tools压缩包下载失败！"
               exit 1
           fi
 
-          # 4. 解压并修复目录结构
+          # 解压并调整目录结构
           unzip -q tools.zip -d latest
           if [ -d "latest/cmdline-tools" ]; then
               mv latest/cmdline-tools/* latest/
               rm -rf latest/cmdline-tools
           fi
 
-          # 5. 验证sdkmanager是否存在
-          if [ ! -f "latest/bin/sdkmanager" ]; then
-              echo "Error: sdkmanager文件不存在！"
-              ls -la latest/
-              exit 1
-          fi
+          # ========== 核心修复：创建软链接映射路径 ==========
+          mkdir -p "$SDK_DIR/tools/bin"
+          ln -s "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "$SDK_DIR/tools/bin/sdkmanager"
+          # 验证软链接
+          ls -la "$SDK_DIR/tools/bin/sdkmanager"
+          # ===============================================
 
-          # 6. 强制同意许可证（关闭交互，增加超时）
+          # 同意许可证（超时兜底）
           yes | timeout 300 latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
 
-          # 7. 配置环境变量（绝对路径，避免~解析问题）
+          # 配置环境变量（绝对路径）
           echo "ANDROID_HOME=$SDK_DIR" >> $GITHUB_ENV
           echo "PATH=$SDK_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
-          # 调试：输出关键信息
+          # 调试信息
           echo "ANDROID_HOME: $SDK_DIR"
-          echo "sdkmanager路径: $(which sdkmanager)"
-          latest/bin/sdkmanager --version
+          echo "sdkmanager版本: $(latest/bin/sdkmanager --version 2>&1 | head -1)"
 
       - name: Build with Buildozer
         run: |
           export PATH=$HOME/.local/bin:$PATH
           # 预更新Android依赖
           buildozer android update
-          # 执行构建
+          # 执行构建（保留详细日志）
           buildozer -v android debug
         env:
           ANDROIDSDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/

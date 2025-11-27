@@ -2,7 +2,7 @@
 title = MedicalHelper
 package.name = medicalhelper
 package.domain = com.medical.helper
-version = 1.0.8
+version = 1.0.0
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,db
 requirements = python3,kivy==2.3.0,pillow==10.1.0,requests==2.31.0,android,pyjnius,plyer
@@ -17,7 +17,7 @@ android.ndk = 25b
 android.archs = arm64-v8a
 android.accept_sdk_license = True
 android.sdkmanager_path = /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager
-source.include_exts = py,png,jpg,kv,atlas,ttf,db
+
 presplash.filename = %(source.dir)s/assets/presplash.png
 icon.filename = %(source.dir)s/assets/icon.png
 

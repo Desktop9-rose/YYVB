@@ -26,9 +26,10 @@ jobs:
             cmake libffi-dev libssl-dev \
             python3-pip python3-venv
 
-      - name: Install Buildozer
+      - name: Install Cython and Buildozer
         run: |
           pip install --upgrade pip
+          pip install cython==0.29.33
           pip install buildozer
 
       - name: Build APK

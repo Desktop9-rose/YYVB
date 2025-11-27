@@ -45,6 +45,7 @@ jobs:
       - name: Build APK
         run: |
           export PATH=$HOME/.local/bin:$PATH
+          buildozer android clean
           buildozer android update
           buildozer -v android debug
         env:

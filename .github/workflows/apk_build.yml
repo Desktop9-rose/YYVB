@@ -8,14 +8,13 @@ on:
 
 jobs:
   build:
-    # 关键：指定Ubuntu 22.04（兼容libtinfo5，避免包缺失）
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04  # 固定22.04避免包兼容问题
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Free Disk Space (释放Android SDK所需空间)
+      - name: Free Disk Space
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: false
@@ -31,7 +30,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install System Dependencies (适配Ubuntu 22.04，修复libtinfo5)
+      - name: Install System Dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
@@ -39,50 +38,78 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 \
             cmake libffi-dev libssl-dev libxml2-utils
-          # 配置JDK环境变量
+          # 强制指定Java 17（sdkmanager要求Java 11+）
+          sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "PATH=$JAVA_HOME/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Install Buildozer (固定兼容版本)
+      - name: Install Buildozer
         run: |
           pip install --upgrade pip
           pip install --user buildozer==1.5.0 cython==0.29.36
-          # 验证Buildozer安装
           export PATH=$HOME/.local/bin:$PATH
           buildozer --version
 
-      - name: Accept Android SDK Licenses (适配新版SDK目录结构)
+      - name: Accept Android SDK Licenses (鲁棒版，解决Exit Code 8)
         run: |
-          # 创建SDK目录
-          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
-          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
-          # 从清华镜像下载cmdline-tools
-          wget -q https://mirrors.tuna.tsinghua.edu.cn/android/repository/commandlinetools-linux-10406996_latest.zip -O tools.zip
-          unzip -q tools.zip -d latest
-          # 调整目录结构，让sdkmanager在latest/bin下
-          mv latest/cmdline-tools/* latest/ && rm -rf latest/cmdline-tools
-          # 强制同意所有SDK许可证
-          yes | latest/bin/sdkmanager --licenses > /dev/null 2>&1
-          # 验证sdkmanager是否存在
-          ls -la latest/bin/sdkmanager
-          # 将cmdline-tools路径加入环境变量
-          echo "ANDROID_HOME=~/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-          echo "PATH=$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+          # 1. 创建完整SDK目录并赋权
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          mkdir -p "$SDK_DIR/cmdline-tools"
+          chmod -R 777 "$SDK_DIR"
+          cd "$SDK_DIR/cmdline-tools"
 
-      - name: Build with Buildozer (核心构建步骤)
+          # 2. 备选下载源（清华+官方双保险）
+          TOOLS_URL="https://mirrors.tuna.tsinghua.edu.cn/android/repository/commandlinetools-linux-10406996_latest.zip"
+          if ! wget -q "$TOOLS_URL" -O tools.zip; then
+              echo "清华镜像下载失败，切换官方源..."
+              wget -q "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -O tools.zip
+          fi
+
+          # 3. 验证压缩包是否存在
+          if [ ! -f "tools.zip" ]; then
+              echo "Error: cmdline-tools压缩包下载失败！"
+              exit 1
+          fi
+
+          # 4. 解压并修复目录结构
+          unzip -q tools.zip -d latest
+          if [ -d "latest/cmdline-tools" ]; then
+              mv latest/cmdline-tools/* latest/
+              rm -rf latest/cmdline-tools
+          fi
+
+          # 5. 验证sdkmanager是否存在
+          if [ ! -f "latest/bin/sdkmanager" ]; then
+              echo "Error: sdkmanager文件不存在！"
+              ls -la latest/
+              exit 1
+          fi
+
+          # 6. 强制同意许可证（关闭交互，增加超时）
+          yes | timeout 300 latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+
+          # 7. 配置环境变量（绝对路径，避免~解析问题）
+          echo "ANDROID_HOME=$SDK_DIR" >> $GITHUB_ENV
+          echo "PATH=$SDK_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+
+          # 调试：输出关键信息
+          echo "ANDROID_HOME: $SDK_DIR"
+          echo "sdkmanager路径: $(which sdkmanager)"
+          latest/bin/sdkmanager --version
+
+      - name: Build with Buildozer
         run: |
-          # 确保Buildozer在PATH中
           export PATH=$HOME/.local/bin:$PATH
-          # 执行构建（-v输出详细日志）
+          # 预更新Android依赖
+          buildozer android update
+          # 执行构建
           buildozer -v android debug
         env:
-          # 国内镜像源加速SDK/NDK下载
           ANDROIDSDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
           ANDROIDNDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
-          # 强制指定SDK路径
-          ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
+          ANDROID_HOME: $HOME/.buildozer/android/platform/android-sdk
 
-      - name: Upload APK & Logs (便于排查问题)
+      - name: Upload APK & Logs
         uses: actions/upload-artifact@v4
         with:
           name: medical-helper-apk

@@ -1,14 +1,12 @@
 name: Build APK
-
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,11 +30,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends \
-            build-essential git zip unzip openjdk-17-jdk \
-            autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libtinfo5 \
-            cmake libffi-dev libssl-dev libxml2-utils
+          sudo apt-get install -y --no-install-recommends build-essential git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev libxml2-utils
           sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "PATH=$JAVA_HOME/bin:$PATH" >> $GITHUB_ENV
@@ -48,55 +42,39 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           buildozer --version
 
-      - name: Accept Android SDK Licenses
+      - name: Prepare Android SDK
         run: |
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p "$SDK_DIR/cmdline-tools"
           chmod -R 777 "$SDK_DIR"
           cd "$SDK_DIR/cmdline-tools"
-
-          # 双源下载cmdline-tools
-          TOOLS_URL="https://mirrors.tuna.tsinghua.edu.cn/android/repository/commandlinetools-linux-10406996_latest.zip"
-          if ! wget -q "$TOOLS_URL" -O tools.zip; then
-              wget -q "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -O tools.zip
-          fi
-
-          if [ ! -f "tools.zip" ]; then
-              echo "Error: cmdline-tools压缩包下载失败！"
-              exit 1
-          fi
-
+          wget -q "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -O tools.zip
           unzip -q tools.zip -d latest
           if [ -d "latest/cmdline-tools" ]; then
               mv latest/cmdline-tools/* latest/
               rm -rf latest/cmdline-tools
           fi
-
-          # 创建软链接
           mkdir -p "$SDK_DIR/tools/bin"
           ln -s "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "$SDK_DIR/tools/bin/sdkmanager"
-          ls -la "$SDK_DIR/tools/bin/sdkmanager"
-
           yes | timeout 300 latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
           echo "ANDROID_HOME=$SDK_DIR" >> $GITHUB_ENV
           echo "PATH=$SDK_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Build with Buildozer
+      - name: Build APK
         run: |
           export PATH=$HOME/.local/bin:$PATH
           buildozer android update
           buildozer -v android debug
         env:
-          ANDROIDSDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
-          ANDROIDNDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
+          ANDROIDSDK_DOWNLOAD_SOURCE: https://dl.google.com/android/repository/
+          ANDROIDNDK_DOWNLOAD_SOURCE: https://dl.google.com/android/repository/
           ANDROID_HOME: $HOME/.buildozer/android/platform/android-sdk
 
-      - name: Upload APK & Logs
+      - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
           name: medical-helper-apk
           path: |
             bin/*.apk
             bin/*.log
-            buildozer.spec
-          retention-days: 7
+          retention-days: 3

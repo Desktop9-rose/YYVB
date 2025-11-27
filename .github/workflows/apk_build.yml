@@ -8,13 +8,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 关键：指定Ubuntu 22.04（兼容libtinfo5，避免包缺失）
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Free Disk Space (关键：释放Android SDK所需空间)
+      - name: Free Disk Space (释放Android SDK所需空间)
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: false
@@ -30,7 +31,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install System Dependencies
+      - name: Install System Dependencies (适配Ubuntu 22.04，修复libtinfo5)
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
@@ -38,7 +39,7 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 \
             cmake libffi-dev libssl-dev libxml2-utils
-          # 配置JDK环境变量（必须）
+          # 配置JDK环境变量
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "PATH=$JAVA_HOME/bin:$PATH" >> $GITHUB_ENV
 
@@ -55,14 +56,14 @@ jobs:
           # 创建SDK目录
           mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
           cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
-          # 从清华镜像下载cmdline-tools（避免官方源超时）
+          # 从清华镜像下载cmdline-tools
           wget -q https://mirrors.tuna.tsinghua.edu.cn/android/repository/commandlinetools-linux-10406996_latest.zip -O tools.zip
           unzip -q tools.zip -d latest
-          # 关键：调整目录结构，让sdkmanager在latest/bin下
+          # 调整目录结构，让sdkmanager在latest/bin下
           mv latest/cmdline-tools/* latest/ && rm -rf latest/cmdline-tools
-          # 强制同意所有SDK许可证（无交互）
+          # 强制同意所有SDK许可证
           yes | latest/bin/sdkmanager --licenses > /dev/null 2>&1
-          # 验证sdkmanager是否存在（调试用）
+          # 验证sdkmanager是否存在
           ls -la latest/bin/sdkmanager
           # 将cmdline-tools路径加入环境变量
           echo "ANDROID_HOME=~/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
@@ -72,13 +73,13 @@ jobs:
         run: |
           # 确保Buildozer在PATH中
           export PATH=$HOME/.local/bin:$PATH
-          # 执行构建（-v输出详细日志，便于排查）
+          # 执行构建（-v输出详细日志）
           buildozer -v android debug
         env:
           # 国内镜像源加速SDK/NDK下载
           ANDROIDSDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
           ANDROIDNDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
-          # 强制指定SDK路径，避免路径查找错误
+          # 强制指定SDK路径
           ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
 
       - name: Upload APK & Logs (便于排查问题)

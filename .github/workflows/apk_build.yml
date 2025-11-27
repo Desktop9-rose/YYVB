@@ -11,34 +11,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install System Dependencies
+      - name: Setup environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git zip unzip \
-            openjdk-17-jdk autoconf libtool \
-            pkg-config zlib1g-dev libncurses5-dev \
-            cmake libffi-dev libssl-dev \
-            python3-pip python3-venv
+          sudo apt update
+          sudo apt install -y python3-pip python3-venv openjdk-8-jdk git zip unzip
+          pip3 install buildozer cython
 
-      - name: Install Cython and Buildozer
+      - name: Pre-accept Android licenses
         run: |
-          pip install --upgrade pip
-          pip install cython==0.29.33
-          pip install buildozer
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
 
       - name: Build APK
         run: |
+          buildozer android clean
           buildozer -v android debug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: medical-helper-apk
-          path: bin/*.apk
-          retention-days: 3

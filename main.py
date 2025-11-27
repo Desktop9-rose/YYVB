@@ -137,7 +137,7 @@ Builder.load_string('''
                     points: [self.right - 30, self.top, self.right, self.top, self.right, self.top - 30]
 
         Label:
-            text: '请将报告文字对齐框内\n保持光线充足 · 避免反光'
+            text: '请将报告文字对齐框内\\n保持光线充足 · 避免反光'
             font_name: 'fonts/simsun.ttc'
             font_size: '28sp'
             halign: 'center'

@@ -1,46 +1,43 @@
-# .github/workflows/apk_build.yml
-name: Build APK
+# 项目依赖配置
+python: "3.9"
 
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
+dependencies:
+  - name: kivy
+    version: "2.3.0"
+    description: "UI框架"
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+  - name: pillow
+    version: "10.1.0"
+    description: "图像处理库"
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  - name: requests
+    version: "2.31.0"
+    description: "HTTP请求库"
 
-      - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@v1.3.1
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
+  - name: cryptography
+    version: "41.0.5"
+    description: "加密解密库"
 
-      - name: Build with Buildozer (Docker)
-        run: |
-          # Create directory for output and set permissions
-          mkdir -p bin
-          chmod 777 bin
-          
-          # Run buildozer using the official KivyMD Docker image
-          # We mount the current workspace to /home/user/hostcwd
-          docker run --rm \
-            -v ${{ github.workspace }}:/home/user/hostcwd \
-            kivymd/buildozer \
-            buildozer android debug
+  - name: plyer
+    version: "2.1.0"
+    description: "跨平台硬件访问"
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: package
-          path: bin/*.apk
-          retention-days: 3
+  - name: urllib3
+    version: "1.26.18"
+    description: "HTTP客户端"
+
+android:
+  permissions:
+    - CAMERA
+    - READ_EXTERNAL_STORAGE
+    - WRITE_EXTERNAL_STORAGE
+    - INTERNET
+    - ACCESS_NETWORK_STATE
+
+  api_level: 21
+  min_api_level: 21
+  build_tools_version: "33.0.0"
+
+assets:
+  - "assets/*"
+  - "fonts/*"

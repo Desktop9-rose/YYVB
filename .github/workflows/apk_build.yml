@@ -1,3 +1,4 @@
+# .github/workflows/apk_build.yml
 name: Build APK
 
 on:
@@ -24,51 +25,61 @@ jobs:
           docker-images: true
           swap-storage: true
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: Install System Dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
-            openjdk-17-jdk \
-            python3-pip \
-            python3-dev \
-            git \
-            zip \
-            unzip \
-            libssl-dev \
-            libffi-dev \
-            build-essential \
-            libncurses5-dev \
-            libncursesw5-dev \
-            zlib1g-dev \
-            liblzma-dev
-          # 配置JDK环境变量
+            build-essential git zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 \
+            cmake libffi-dev libssl-dev libxml2-utils
+          # 配置JDK环境变量（必须）
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "PATH=$JAVA_HOME/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Install Buildozer & Python Dependencies
+      - name: Install Buildozer (固定兼容版本)
         run: |
-          pip3 install --upgrade pip setuptools wheel
-          # 安装与spec匹配的依赖版本
-          pip3 install buildozer==1.5.0 cython==0.29.36 \
-            kivy==2.3.0 pillow==10.1.0 requests==2.31.0 \
-            cryptography==41.0.5 plyer==2.1.0 urllib3==1.26.18
+          pip install --upgrade pip
+          pip install --user buildozer==1.5.0 cython==0.29.36
+          # 验证Buildozer安装
+          export PATH=$HOME/.local/bin:$PATH
+          buildozer --version
 
-      - name: Accept Android SDK Licenses (必选：自动同意许可证，避免构建卡住)
+      - name: Accept Android SDK Licenses (适配新版SDK目录结构)
         run: |
-          mkdir -p ~/.buildozer/android/platform/android-sdk
-          cd ~/.buildozer/android/platform/android-sdk
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O cmdline-tools.zip
-          unzip -q cmdline-tools.zip -d cmdline-tools
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
-          yes | cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
+          # 创建SDK目录
+          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          # 从清华镜像下载cmdline-tools（避免官方源超时）
+          wget -q https://mirrors.tuna.tsinghua.edu.cn/android/repository/commandlinetools-linux-10406996_latest.zip -O tools.zip
+          unzip -q tools.zip -d latest
+          # 关键：调整目录结构，让sdkmanager在latest/bin下
+          mv latest/cmdline-tools/* latest/ && rm -rf latest/cmdline-tools
+          # 强制同意所有SDK许可证（无交互）
+          yes | latest/bin/sdkmanager --licenses > /dev/null 2>&1
+          # 验证sdkmanager是否存在（调试用）
+          ls -la latest/bin/sdkmanager
+          # 将cmdline-tools路径加入环境变量
+          echo "ANDROID_HOME=~/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+          echo "PATH=$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Build APK with Buildozer (原生环境，无Docker)
+      - name: Build with Buildozer (核心构建步骤)
         run: |
+          # 确保Buildozer在PATH中
+          export PATH=$HOME/.local/bin:$PATH
+          # 执行构建（-v输出详细日志，便于排查）
           buildozer -v android debug
         env:
-          # 加速Android依赖下载（可选：国内镜像）
+          # 国内镜像源加速SDK/NDK下载
           ANDROIDSDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
           ANDROIDNDK_DOWNLOAD_SOURCE: https://mirrors.tuna.tsinghua.edu.cn/android/repository/
+          # 强制指定SDK路径，避免路径查找错误
+          ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
 
       - name: Upload APK & Logs (便于排查问题)
         uses: actions/upload-artifact@v4

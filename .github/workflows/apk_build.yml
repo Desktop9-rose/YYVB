@@ -25,7 +25,7 @@ jobs:
             pkg-config zlib1g-dev libncurses5-dev \
             cmake libffi-dev libssl-dev \
             python3-pip python3-venv \
-            wget unzip
+            wget unzip expect
 
       - name: Install Python Dependencies
         run: |
@@ -42,11 +42,38 @@ jobs:
           mv cmdline-tools/cmdline-tools cmdline-tools/latest
           ln -sf cmdline-tools/latest tools
           mkdir -p licenses
+
+      - name: Accept Android SDK Licenses
+        run: |
+          cd ~/.buildozer/android/platform/android-sdk
+          # 写入已知的许可证哈希
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > licenses/android-sdk-license
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > licenses/android-sdk-preview-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> licenses/android-sdk-license
+          # 使用expect自动接受所有许可证
+          cat << 'EOF' > accept_licenses.exp
+#!/usr/bin/expect -f
+set timeout -1
+spawn ./cmdline-tools/latest/bin/sdkmanager --licenses
+expect {
+  "y/N" { send "y\r"; exp_continue }
+  eof
+}
+EOF
+          chmod +x accept_licenses.exp
+          ./accept_licenses.exp
+
+      - name: Install Required SDK Components
+        run: |
+          cd ~/.buildozer/android/platform/android-sdk
+          ./cmdline-tools/latest/bin/sdkmanager "build-tools;30.0.3" "platforms;android-33" "platform-tools"
 
       - name: Build APK
         run: |
+          # 设置环境变量
+          export ANDROIDSDK="$HOME/.buildozer/android/platform/android-sdk"
+          export ANDROIDNDK="$HOME/.buildozer/android/platform/android-ndk-r25b"
           buildozer -v android debug
 
       - name: Upload APK

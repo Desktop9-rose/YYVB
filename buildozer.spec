@@ -1,51 +1,38 @@
-# Buildozer spec file (UTF-8编码，无BOM，语法严格兼容Buildozer 1.5.0)
 [app]
-# 基础必填配置（核心：版本号行无多余空格/符号）
+# 基础配置（参考成功版简化，移除冗余）
 title = 医疗报告助手
 package.name = medicalhelper
-package.domain = com.medical
-version = 1.0.0
+package.domain = com.medical.helper
+version = 1.0.0  # 改用简化的version（成功版用此写法，解析更稳定）
 source.dir = .
-source.include_exts = py,png,jpg,jpeg,ttf,kv,db
+source.include_exts = py,png,jpg,kv,atlas,ttf,db
 
-# 依赖（版本固化，避免兼容问题）
-requirements = python3,kivy==2.3.0,pillow==10.1.0,requests==2.31.0,cryptography==41.0.5,plyer==2.1.0,urllib3==1.26.18
+# 依赖配置（参考成功版轻量化，固化核心版本）
+requirements = python3,kivy==2.3.0,pillow==10.1.0,requests==2.31.0,cryptography==41.0.7,android,pyjnius,plyer
 
-# 界面配置
+# 界面/权限配置（对齐成功版）
 orientation = portrait
 fullscreen = 0
+android.permissions = CAMERA,INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE
+android.private_storage = True  # 成功版核心配置，提升存储权限兼容性
 
-# Android核心配置（适配GitHub Actions环境）
+# Android 核心配置（修复SDK/NDK适配问题）
 android.api = 33
 android.minapi = 26
-android.ndk = 25b
 android.sdk = 33
-android.buildtools = 33.0.0
-android.arch = armeabi-v7a
-android.allow_backup = True
-android.permissions = CAMERA,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,INTERNET,ACCESS_NETWORK_STATE
-# 字体/assets打包（确保自定义字体加载）
-android.add_assets = fonts/
-# Android 13+存储权限兼容
-android.add_android_manifest_activities = android:requestLegacyExternalStorage="true"
-# 跳过字节编译，加速构建
-android.skip_byte_compile = 1
-# 自动接受SDK许可证
+android.ndk = 25b
+android.archs = arm64-v8a  # 替换旧架构armeabi-v7a，适配新版SDK
+# 关键：指定cmdline-tools路径，解决sdkmanager找不到的问题
+android.cmdline_tools_dir = latest
+android.sdk_path = /home/runner/.buildozer/android/platform/android-sdk
+
+# (bool) 自动接受SDK许可证（避免交互卡住）
 android.accept_sdk_license = True
 
-# 非必要配置（仅保留Android相关，移除iOS/OSX无关配置减少解析风险）
-p4a.bootstrap = sdl2
-p4a.icon.filename = icon.png
-
 [buildozer]
-# 日志级别（调试用）
 log_level = 2
-# 根用户警告
 warn_on_root = 1
-# 缓存配置（加速重复构建）
+# 增加SDK下载超时配置，避免下载中断
+timeout = 7200
 cache_dir = .buildozer/cache
 bin_dir = bin
-# 超时配置（避免SDK下载中断）
-timeout = 3600
-# 强制使用指定配置文件路径（解决路径解析问题）
-spec_file = buildozer.spec

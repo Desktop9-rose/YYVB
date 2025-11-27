@@ -42,24 +42,6 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           buildozer --version
 
-      - name: Prepare Android SDK
-        run: |
-          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p "$SDK_DIR/cmdline-tools"
-          chmod -R 777 "$SDK_DIR"
-          cd "$SDK_DIR/cmdline-tools"
-          wget -q "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -O tools.zip
-          unzip -q tools.zip -d latest
-          if [ -d "latest/cmdline-tools" ]; then
-              mv latest/cmdline-tools/* latest/
-              rm -rf latest/cmdline-tools
-          fi
-          mkdir -p "$SDK_DIR/tools/bin"
-          ln -s "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "$SDK_DIR/tools/bin/sdkmanager"
-          yes | timeout 300 latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          echo "ANDROID_HOME=$SDK_DIR" >> $GITHUB_ENV
-          echo "PATH=$SDK_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
-
       - name: Build APK
         run: |
           export PATH=$HOME/.local/bin:$PATH

@@ -5,7 +5,7 @@ package.domain = com.medical.helper
 version = 1.0.0
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,db
-requirements = python3,kivy==2.3.0,pillow==10.1.0,requests==2.31.0,cryptography==3.3.2,android,pyjnius,plyer
+requirements = python3,kivy==2.3.0,pillow==10.1.0,requests==2.31.0,android,pyjnius,plyer
 orientation = portrait
 fullscreen = 0
 android.permissions = CAMERA,INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE

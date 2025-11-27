@@ -1,8 +1,10 @@
-# Main Python file for Kivy App
+# main.py
 import os
 import threading
 import sqlite3
 import json
+import base64
+import hashlib
 from datetime import datetime
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
@@ -10,17 +12,14 @@ from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.lang import Builder
 from kivy.core.window import Window
 from kivy.clock import Clock, mainthread
-from kivy.properties import StringProperty, NumericProperty, BooleanProperty
+from kivy.properties import StringProperty, NumericProperty, BooleanProperty, ListProperty
 from kivy.uix.button import Button
 from kivy.animation import Animation
-from cryptography.fernet import Fernet
 
-# Service Imports
 from services.android_service import AndroidService
 from services.ocr_service import MedicalOCR
 from services.ai_service import MedicalAI
 
-# Load UI
 Builder.load_string('''
 #:import hex kivy.utils.get_color_from_hex
 
@@ -113,7 +112,6 @@ Builder.load_string('''
             pos: self.pos
             size: self.size
     FloatLayout:
-        # Guide Box
         Widget:
             size_hint: 0.85, 0.55
             pos_hint: {'center_x': 0.5, 'center_y': 0.55}
@@ -123,7 +121,6 @@ Builder.load_string('''
                 Line:
                     width: 2
                     rectangle: (self.x, self.y, self.width, self.height)
-                # Corners (Green)
                 Color:
                     rgba: (0, 1, 0, 1)
                 Line:
@@ -158,7 +155,6 @@ Builder.load_string('''
                 pos: self.pos
                 size: self.size
 
-        # Header
         BoxLayout:
             size_hint_y: None
             height: '60dp'
@@ -239,7 +235,6 @@ Builder.load_string('''
                 padding: 20
                 spacing: 20
 
-                # Speech Rate
                 BoxLayout:
                     orientation: 'vertical'
                     size_hint_y: None
@@ -274,7 +269,6 @@ Builder.load_string('''
                             group: 'speed'
                             on_release: root.update_speed(1.0)
 
-                # API Keys
                 BoxLayout:
                     orientation: 'vertical'
                     size_hint_y: None
@@ -331,7 +325,6 @@ Builder.load_string('''
                         height: '60dp'
                         on_release: root.save_keys()
 
-                # Data Management
                 BoxLayout:
                     orientation: 'vertical'
                     size_hint_y: None
@@ -380,24 +373,34 @@ Builder.load_string('''
     color: hex('#000000') if self.state == 'normal' else hex('#FFFFFF')
 ''')
 
-
 class SecretManager:
     def __init__(self):
         self.key_file = 'secret.key'
         self.db_path = 'secrets.db'
         self._init_key()
         self._init_db()
-        self.cipher = Fernet(self._load_key())
 
     def _init_key(self):
         if not os.path.exists(self.key_file):
-            key = Fernet.generate_key()
+            key = hashlib.sha256(b'medical_helper_default_key_2024').digest()
             with open(self.key_file, 'wb') as key_file:
                 key_file.write(key)
 
     def _load_key(self):
         with open(self.key_file, 'rb') as key_file:
             return key_file.read()
+
+    def _simple_encrypt(self, text):
+        encoded = base64.b64encode(text.encode()).decode()
+        return encoded[::-1]
+
+    def _simple_decrypt(self, encrypted_text):
+        try:
+            encoded = encrypted_text[::-1]
+            decoded = base64.b64decode(encoded.encode()).decode()
+            return decoded
+        except:
+            return None
 
     def _init_db(self):
         conn = sqlite3.connect(self.db_path)
@@ -409,10 +412,10 @@ class SecretManager:
 
     def save_secret(self, key_name, value):
         if not value: return
-        encrypted = self.cipher.encrypt(value.encode()).decode()
+        encoded = self._simple_encrypt(value)
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("INSERT OR REPLACE INTO secrets VALUES (?, ?)", (key_name, encrypted))
+        c.execute("INSERT OR REPLACE INTO secrets VALUES (?, ?)", (key_name, encoded))
         conn.commit()
         conn.close()
 
@@ -423,12 +426,8 @@ class SecretManager:
         result = c.fetchone()
         conn.close()
         if result:
-            try:
-                return self.cipher.decrypt(result[0].encode()).decode()
-            except:
-                return None
+            return self._simple_decrypt(result[0])
         return None
-
 
 class DatabaseManager:
     def __init__(self):
@@ -478,7 +477,6 @@ class DatabaseManager:
         return None
 
     def delete_old_records(self, days=30):
-        # Implementation for deleting records older than X days
         pass
 
     def delete_all_records(self):
@@ -487,7 +485,6 @@ class DatabaseManager:
         cursor.execute('DELETE FROM history')
         conn.commit()
         conn.close()
-
 
 class CommonButton(Button):
     bg_color = ListProperty([0, 0, 0, 1])
@@ -501,12 +498,7 @@ class CommonButton(Button):
             anim = Animation(opacity_val=1, duration=0.1)
         anim.start(self)
 
-
 class LongPressButton(Button):
-    """
-    支持长按事件的按钮
-    """
-
     def __init__(self, record_id, **kwargs):
         super().__init__(**kwargs)
         self.record_id = record_id
@@ -516,7 +508,6 @@ class LongPressButton(Button):
     def on_touch_down(self, touch):
         if self.collide_point(*touch.pos):
             self._is_long_press = False
-            # 0.8秒后触发长按
             self._long_press_event = Clock.schedule_once(self.do_long_press, 0.8)
             return super().on_touch_down(touch)
         return False
@@ -525,7 +516,6 @@ class LongPressButton(Button):
         if self._long_press_event:
             self._long_press_event.cancel()
         if self._is_long_press:
-            # 如果触发了长按，这里不再触发点击(on_release)
             return True
         return super().on_touch_up(touch)
 
@@ -533,10 +523,8 @@ class LongPressButton(Button):
         self._is_long_press = True
         App.get_running_app().share_history_item(self.record_id)
 
-
 class CameraGuideScreen(Screen):
     pass
-
 
 class HistoryScreen(Screen):
     def on_enter(self):
@@ -550,21 +538,16 @@ class HistoryScreen(Screen):
             return
 
         for r in records:
-            # r: (id, date, title, json)
             btn_text = f"[size=20sp][color=#9E9E9E]{r[1]}[/color][/size]\n[size=28sp][b]{r[2]}[/b][/size]"
-            # 使用 LongPressButton
             item = LongPressButton(record_id=r[0], text=btn_text)
-            # 点击事件 (短按)
             item.bind(on_release=lambda x, rid=r[0]: App.get_running_app().show_history_detail(rid))
             self.ids.history_list.add_widget(item)
-
 
 class SettingsScreen(Screen):
     def update_speed(self, rate):
         app = App.get_running_app()
         app.android.set_speech_rate(rate)
         app.android.speak("当前语速试听：一二三四五")
-        # Save preference
         app.secrets.save_secret('speech_rate', str(rate))
 
     def save_keys(self):
@@ -575,7 +558,6 @@ class SettingsScreen(Screen):
         s.save_secret('deepseek_key', self.ids.input_deepseek.text)
         s.save_secret('tongyi_key', self.ids.input_tongyi.text)
         app.android.toast("密钥已保存")
-        # Reload services with new keys
         app.init_services()
 
     def clear_history(self, old_only=False):
@@ -587,10 +569,8 @@ class SettingsScreen(Screen):
             app.db.delete_all_records()
             app.android.toast("历史记录已清空")
 
-
 class HomeScreen(Screen):
     pass
-
 
 class MedicalApp(App):
     def build(self):
@@ -599,22 +579,17 @@ class MedicalApp(App):
         self.db = DatabaseManager()
         self.secrets = SecretManager()
         self.init_services()
-
-        # Load saved settings
         saved_rate = self.secrets.get_secret('speech_rate')
         if saved_rate:
             self.android.set_speech_rate(float(saved_rate))
-
         sm = ScreenManager()
         sm.add_widget(HomeScreen(name='home'))
         sm.add_widget(CameraGuideScreen(name='guide'))
         sm.add_widget(HistoryScreen(name='history'))
         sm.add_widget(SettingsScreen(name='settings'))
-        # ResultScreen would be dynamically added or separate
         return sm
 
     def init_services(self):
-        # Load keys from DB
         keys = {
             'ali_ak': self.secrets.get_secret('ali_ak'),
             'ali_sk': self.secrets.get_secret('ali_sk'),
@@ -625,44 +600,33 @@ class MedicalApp(App):
         self.ai = MedicalAI(keys)
 
     def on_camera_click(self):
-        # 1. Jump to Guide Screen
         self.root.current = 'guide'
         self.android.speak("请将报告单对齐白色边框，保持光线充足")
-        # 2. Delayed launch of real camera
         Clock.schedule_once(self.launch_camera_delay, 2.5)
 
     def launch_camera_delay(self, dt):
         self.android.take_photo(self.on_photo_success, self.on_photo_cancel)
-        # Note: on_photo_success callback will switch screen to loading
 
     def pick_image(self):
         self.android.pick_image(self.on_photo_success)
 
     @mainthread
     def on_photo_success(self, image_path):
-        # Logic to process report...
         threading.Thread(target=self.process_report, args=(image_path,)).start()
 
     def on_photo_cancel(self):
         self.root.current = 'home'
 
     def process_report(self, image_path):
-        # 1. OCR
         text = self.ocr.recognize(image_path)
-        # 2. AI
         result = self.ai.analyze(text)
-        # 3. Save
         self.db.add_record(result.get('title', '未命名报告'), result)
-        pass
 
     def share_history_item(self, record_id):
-        # Get record text
         record = self.db.get_record(record_id)
         if record:
-            # Construct share text (desensitized)
             share_content = f"【检查报告解读】\n核心结论：{record.get('core_conclusion', '')}\n异常指标：{record.get('abnormal_analysis', '')}\n生活建议：{record.get('life_advice', '')}"
             self.android.share_text(share_content)
-
 
 if __name__ == '__main__':
     MedicalApp().run()

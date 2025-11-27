@@ -1,13 +1,14 @@
+# Buildozer spec file (UTF-8编码，无BOM，语法严格兼容Buildozer 1.5.0)
 [app]
-# 应用基础配置
+# 基础必填配置（核心：版本号行无多余空格/符号）
 title = 医疗报告助手
 package.name = medicalhelper
 package.domain = com.medical
-package.version = 1.0.0  # 必选：修复版本号缺失报错
+version = 1.0.0
 source.dir = .
 source.include_exts = py,png,jpg,jpeg,ttf,kv,db
 
-# 依赖（与YAML中安装版本一致）
+# 依赖（版本固化，避免兼容问题）
 requirements = python3,kivy==2.3.0,pillow==10.1.0,requests==2.31.0,cryptography==41.0.5,plyer==2.1.0,urllib3==1.26.18
 
 # 界面配置
@@ -15,33 +16,36 @@ orientation = portrait
 fullscreen = 0
 
 # Android核心配置（适配GitHub Actions环境）
-android.api = 33          # 升级到稳定版API
-android.minapi = 26       # 兼容更多设备
-android.ndk = 25b         # 与buildozer 1.5.0兼容的NDK版本
-android.sdk = 33          # 匹配API版本
+android.api = 33
+android.minapi = 26
+android.ndk = 25b
+android.sdk = 33
 android.buildtools = 33.0.0
 android.arch = armeabi-v7a
 android.allow_backup = True
 android.permissions = CAMERA,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,INTERNET,ACCESS_NETWORK_STATE
-# 字体/assets打包（关键：确保自定义字体能被加载）
+# 字体/assets打包（确保自定义字体加载）
 android.add_assets = fonts/
-# 存储权限兼容Android 13+
+# Android 13+存储权限兼容
 android.add_android_manifest_activities = android:requestLegacyExternalStorage="true"
+# 跳过字节编译，加速构建
+android.skip_byte_compile = 1
+# 自动接受SDK许可证
+android.accept_sdk_license = True
 
-# 非必要配置（保留但不影响Android构建）
-osx.python_version = 3
-osx.kivy_version = 2.3.0
+# 非必要配置（仅保留Android相关，移除iOS/OSX无关配置减少解析风险）
 p4a.bootstrap = sdl2
-p4a.icon.filename = icon.png  # 若无图标可注释，不影响构建
-ios.kivy_ios_url = https://github.com/kivy/kivy-ios
-ios.kivy_ios_branch = master
-ios.ios_deploy_url = https://github.com/phonegap/ios-deploy
-ios.ios_deploy_branch = 1.10.0
-ios.codesign.allowed = false
+p4a.icon.filename = icon.png
 
 [buildozer]
+# 日志级别（调试用）
 log_level = 2
+# 根用户警告
 warn_on_root = 1
-cache_dir = .buildozer/cache  # 缓存依赖，加速重复构建
+# 缓存配置（加速重复构建）
+cache_dir = .buildozer/cache
 bin_dir = bin
-timeout = 3600               # 延长超时，避免SDK下载中断
+# 超时配置（避免SDK下载中断）
+timeout = 3600
+# 强制使用指定配置文件路径（解决路径解析问题）
+spec_file = buildozer.spec

@@ -33,14 +33,13 @@ jobs:
           pip install cython==0.29.33
           pip install buildozer
 
-      - name: Setup Android SDK Correctly
+      - name: Pre-configure Android SDK
         run: |
           mkdir -p ~/.buildozer/android/platform/android-sdk
           cd ~/.buildozer/android/platform/android-sdk
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
-          unzip -q commandlinetools-linux-8512546_latest.zip
-          mkdir -p cmdline-tools
-          mv tools cmdline-tools/latest
+          unzip -q commandlinetools-linux-8512546_latest.zip -d cmdline-tools
+          mv cmdline-tools/cmdline-tools cmdline-tools/latest
           ln -sf cmdline-tools/latest tools
           mkdir -p licenses
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > licenses/android-sdk-license
